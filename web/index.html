@@ -123,7 +123,11 @@ select{appearance:none;background:var(--surface);border:1px solid var(--border);
 const SUPABASE_URL = "https://aiyfpbyrvpgtuuenrfph.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ur11e7ExXLR3Gq1GVF-qUQ_52Dx5VEs";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { flowType:"implicit", detectSessionInUrl:true, persistSession:true, autoRefreshToken:true }
+  auth: {
+    flowType:"implicit", detectSessionInUrl:true, persistSession:true, autoRefreshToken:true,
+    // Pass-through lock: avoids the navigator.locks cross-tab deadlock that can hang auth calls forever.
+    lock: (name, acquireTimeout, fn) => fn()
+  }
 });
 
 const S = { creators:[], accepted:[], settings:{}, fus:[], tab:"pipe", sel:new Set(), active:null, filters:{q:"",niches:new Set(),bands:new Set(),statuses:new Set()} };
@@ -178,8 +182,12 @@ async function doLogin(){
   const email=$("#loginEmail").value.trim(); const password=$("#loginPass").value;
   if(!email||!password){ $("#loginMsg").textContent="Enter your email and password."; return; }
   $("#loginMsg").textContent="Signing in...";
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if(error) $("#loginMsg").textContent = "Error: "+error.message;
+  try{
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("Request timed out. Close other tabs of this app, disable extensions, or try an incognito window, then retry.")),12000));
+    const { data, error } = await Promise.race([ sb.auth.signInWithPassword({ email, password }), timeout ]);
+    if(error){ $("#loginMsg").textContent = "Error: "+error.message; return; }
+    if(data&&data.session){ showApp(); }
+  }catch(e){ $("#loginMsg").textContent = "Error: "+(e&&e.message?e.message:e); }
 }
 $("#loginBtn").onclick=doLogin;
 $("#loginPass").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
