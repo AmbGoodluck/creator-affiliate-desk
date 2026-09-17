@@ -181,7 +181,7 @@ function buildEmail(c){
   const subject = c.subject_override ? c.subject_override : (firstName(c.name)? (s.subject_named||"").replaceAll("{name}",firstName(c.name)) : (s.subject_generic||""));
   let body;
   if(c.email_override) body=c.email_override;
-  else body=(s.body_template||"").replaceAll("{name}",c.name||"there").replaceAll("{compliment}",c.compliment||"").replaceAll("{problem}",c.problem||"").replaceAll("{fromName}",s.from_name||"")+"\n\n"+(s.footer||"")+"\n"+(s.address||"");
+  else body=((s.body_template||"")+"\n\n"+(s.footer||"")+"\n"+(s.address||"")).replaceAll("{name}",firstName(c.name)||"there").replaceAll("{niche}",c.niche||"your space").replaceAll("{compliment}",c.compliment||"").replaceAll("{problem}",c.problem||"").replaceAll("{fromName}",s.from_name||"");
   return {subject,body};
 }
 
