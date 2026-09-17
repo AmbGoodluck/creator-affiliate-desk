@@ -122,7 +122,8 @@ select{appearance:none;background:var(--surface);border:1px solid var(--border);
       <div class="ms" id="msBand"></div>
       <div class="ms" id="msStatus"></div>
       <button class="clearf" id="clearFilters" hidden>Clear</button>
-      <button class="btn" id="persBtn" style="margin-left:auto">Personalize</button>
+      <button class="btn" id="findBtn" style="margin-left:auto">Find emails</button>
+      <button class="btn" id="persBtn">Personalize</button>
       <button class="btn primary" id="fetchBtn">Fetch creators</button>
     </div>
     <p id="fetchMsg" class="note" style="margin:0 0 6px" hidden></p>
@@ -297,6 +298,28 @@ function openSettings(){
   $("#sClose").onclick=()=>$("#modal").classList.remove("on");
   $("#sSave").onclick=async()=>{const d={from_name:$("#sFrom").value,product:$("#sProd").value,address:$("#sAddr").value,footer:$("#sFoot").value,daily_send_cap:Number($("#sCap").value)||25,body_template:$("#sBody").value};S.settings={...S.settings,...d};await sb.from("outreach_settings").update(d).eq("id",1);$("#modal").classList.remove("on");render();toast("Settings saved");};
 }
+async function doFindEmails(){
+  const ids=[...S.sel];
+  const btn=$("#findBtn"), msg=$("#fetchMsg");
+  const label=btn.textContent; btn.disabled=true; btn.textContent="Finding..."; msg.hidden=false;
+  msg.textContent="Searching business emails, bios, and the contact page behind each creator's link...";
+  let found=0, checked=0, rounds=0;
+  try{
+    while(rounds<25){
+      rounds++;
+      const { data, error } = await sb.functions.invoke("enrich-emails", { body: ids.length?{ids}:{limit:10} });
+      if(error){ msg.textContent="Error: "+(error.message||error); break; }
+      if(data&&data.error){ msg.textContent=data.error; break; }
+      found+=data.found||0; checked+=data.checked||0;
+      await loadAll(); render();
+      if(ids.length){ break; }
+      if(!data.remaining){ break; }
+      msg.textContent="Found "+found+" email"+(found===1?"":"s")+" so far, still checking "+data.remaining+" more...";
+    }
+    msg.textContent="Done. Found "+found+" email"+(found===1?"":"s")+" from "+checked+" checked. The rest do not publish one anywhere public, use the Instagram DM for those.";
+  }catch(e){ msg.textContent="Error: "+(e&&e.message?e.message:e); }
+  finally{ btn.disabled=false; btn.textContent=label; if(ids.length)S.sel.clear(); render(); }
+}
 async function doPersonalize(){
   const ids=[...S.sel];
   const btn=$("#persBtn"), msg=$("#fetchMsg");
@@ -357,11 +380,12 @@ function wire(){
   $("#clearFilters").onclick=()=>{S.filters.q="";$("#q").value="";S.filters.niches.clear();S.filters.bands.clear();S.filters.statuses.clear();MS.niche.setOptions(MS.niche._opts);MS.band.setOptions(MS.band._opts);MS.status.setOptions(MS.status._opts);render();};
   $("#fetchBtn").onclick=doFetch;
   $("#persBtn").onclick=doPersonalize;
+  $("#findBtn").onclick=doFindEmails;
   document.addEventListener("click",()=>document.querySelectorAll(".ms-pop").forEach(p=>p.hidden=true));
   $("#scrim").onclick=closeDrawer;$("#settingsBtn").onclick=openSettings;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").classList.remove("on");};
   $("#bClear").onclick=()=>{S.sel.clear();render();};
   $("#bAppr").onclick=()=>{const ids=[...S.sel];patchMany(ids,{first_email_approved:true,status:"Approved"});toast(ids.length+" approved and queued");S.sel.clear();render();};
-  $("#bDecline").onclick=()=>{patchMany([...S.sel],{status:"Declined"});S.sel.clear();render();};
+  $("#bDecline").onclick=()=>{const n=S.sel.size;if(n>=5&&!confirm("Decline "+n+" creators? They get archived and removed from outreach. You can ask to restore them later."))return;patchMany([...S.sel],{status:"Declined"});S.sel.clear();render();};
   $("#themeBtn").onclick=()=>{const r=document.documentElement;const cur=r.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");r.setAttribute("data-theme",cur==="dark"?"light":"dark");};
   document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();$("#modal").classList.remove("on");}});
 }
