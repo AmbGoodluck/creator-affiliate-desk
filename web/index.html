@@ -71,6 +71,20 @@ select{appearance:none;background:var(--surface);border:1px solid var(--border);
 .modal{position:fixed;inset:0;display:grid;place-items:center;background:rgba(10,18,14,.5);z-index:60;opacity:0;pointer-events:none;transition:opacity .18s;padding:20px}.modal.on{opacity:1;pointer-events:auto}.mcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);width:min(560px,100%);max-height:88vh;overflow-y:auto}.mcard h2{font-size:18px;padding:18px 20px 0}.mcard .msub{color:var(--muted);font-size:12.5px;padding:4px 20px 0}.mbody{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:var(--ground);padding:11px 16px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:var(--shadow);z-index:80;opacity:0;transform:translateY(10px);transition:.2s;max-width:320px}.toast.on{opacity:1;transform:none}
 .note{font-size:12px;color:var(--muted);line-height:1.5}
+.fx-strip{display:flex;align-items:center;gap:11px;padding:14px 16px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.fx-orb{width:9px;height:9px;border-radius:50%;background:var(--accent);position:relative;flex:none}
+.fx-orb::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--accent);animation:fxpulse 1.7s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes fxpulse{0%{transform:scale(1);opacity:.55}70%,100%{transform:scale(3.6);opacity:0}}
+.fx-status{font-size:13.5px;color:var(--ink);font-weight:600;letter-spacing:-.01em}.fx-status .sub{color:var(--accent-ink);font-weight:500;font-family:var(--fm);font-size:12px;letter-spacing:0}
+.fx-beam{height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:38% 100%;background-repeat:no-repeat;background-position:-40% 0;animation:fxbeam 1.5s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes fxbeam{to{background-position:140% 0}}
+.sk-row{display:grid;grid-template-columns:34px 1fr 128px 116px 40px;gap:12px;align-items:center;padding:16px;border-top:1px solid var(--border);opacity:0;animation:skin .5s ease forwards}
+@keyframes skin{to{opacity:1}}
+.sk{background:linear-gradient(100deg,var(--surface-2) 30%,color-mix(in srgb,var(--border) 70%,var(--surface-2)) 50%,var(--surface-2) 70%);background-size:200% 100%;border-radius:7px;animation:shim 1.6s ease-in-out infinite}
+.sk-av{width:26px;height:26px;border-radius:50%}.sk-l1{height:11px;width:46%;margin-bottom:9px}.sk-l2{height:9px;width:72%}.sk-chip{height:15px;width:78%}.sk-pill{height:22px;width:66px;border-radius:999px}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (max-width:720px){.sk-row{grid-template-columns:28px 1fr 84px}.sk-row .cm,.sk-row>div:last-child{display:none}}
+@media (prefers-reduced-motion:reduce){.fx-orb::after,.fx-beam,.sk,.sk-row{animation:none}.sk{opacity:.55}.fx-beam{background-position:50% 0}.sk-row{opacity:1}}
 .login{min-height:100vh;display:grid;place-items:center;padding:20px}.logincard{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:32px;max-width:400px;width:100%;text-align:center}.logincard .logo{margin:0 auto 16px}.logincard h1{font-size:22px;margin-bottom:6px}.logincard p{color:var(--muted);font-size:13.5px;margin:0 0 20px}.logincard input{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;font-family:inherit;font-size:14px;color:var(--ink);outline:none;margin-bottom:10px}.logincard .btn{width:100%}
 @media (max-width:720px){.thead,.trow{grid-template-columns:28px 1fr 84px;gap:10px}.thead .cm,.thead .cc,.trow .cm,.trow .cc{display:none}}
 </style>
@@ -132,7 +146,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-const S = { creators:[], accepted:[], settings:{}, fus:[], tab:"pipe", sel:new Set(), active:null, filters:{q:"",niches:new Set(),bands:new Set(),statuses:new Set()} };
+const S = { creators:[], accepted:[], settings:{}, fus:[], tab:"pipe", sel:new Set(), active:null, fetching:false, fxSteps:[], fetchStep:0, filters:{q:"",niches:new Set(),bands:new Set(),statuses:new Set()} };
 const MS = {};
 const $ = s => document.querySelector(s);
 const esc = t => (t==null?"":String(t)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
@@ -176,7 +190,7 @@ async function initAuth(){
   const urlErr = hp.get("error_description") || new URLSearchParams(location.search).get("error_description");
   const { data:{ session } } = await sb.auth.getSession();
   if(session){ cleanUrl(); showApp(); }
-  else { $("#login").hidden=false; if(urlErr){ $("#loginMsg").textContent = "Error: "+urlErr+". Request a fresh link."; cleanUrl(); } }
+  else { $("#login").hidden=false; $("#login").style.display=""; if(urlErr){ $("#loginMsg").textContent = "Error: "+urlErr+". Request a fresh link."; cleanUrl(); } }
   sb.auth.onAuthStateChange((_e,sess)=>{ if(sess){ cleanUrl(); showApp(); } });
 }
 function cleanUrl(){ try{ history.replaceState(null,"",location.pathname); }catch(e){} }
@@ -198,7 +212,7 @@ $("#signout").onclick=async()=>{ await sb.auth.signOut(); location.reload(); };
 let _appUp=false;
 async function showApp(){
   if(_appUp) return; _appUp=true;
-  $("#login").hidden=true; $("#app").hidden=false;
+  $("#login").hidden=true; $("#login").style.display="none"; $("#app").hidden=false; $("#app").style.display="block";
   await loadAll(); wire(); render();
   sb.channel("oc").on("postgres_changes",{event:"*",schema:"public",table:"outreach_creators"},()=>loadAll().then(render)).subscribe();
 }
@@ -231,7 +245,7 @@ function render(){
   $("#tabPipe").classList.toggle("on",S.tab==="pipe");$("#tabReply").classList.toggle("on",S.tab==="reply");$("#tabAcc").classList.toggle("on",S.tab==="acc");
   $("#rc").textContent=(()=>{const n=S.creators.filter(c=>c.status==="Replied").length;return n?"("+n+")":"";})();
   $("#ac").textContent=S.accepted.length?"("+S.accepted.length+")":"";
-  if(S.tab==="pipe") renderPipe(); else if(S.tab==="reply") renderReplies(); else renderAccepted();
+  if(S.tab==="pipe"){ if(S.fetching) renderFetching(); else renderPipe(); } else if(S.tab==="reply") renderReplies(); else renderAccepted();
   $("#bulk").classList.toggle("on",S.sel.size>0); $("#bulkCnt").textContent=S.sel.size+" selected";
   renderDrawer();
 }
@@ -245,6 +259,8 @@ const NICHES=["Personal Finance","Investing & FIRE","Budgeting","Real Estate","C
 function fillNiches(){if(!MS.niche)return;const ns=[...new Set([...NICHES,...S.creators.map(c=>c.niche).filter(Boolean)])].sort();const sig=ns.join("|");if(MS.niche._sig===sig)return;MS.niche.setOptions(ns.map(n=>({v:n,l:n})));MS.niche._sig=sig;}
 function row(c){const st=c.status||"New";const mail=c.email?`<span class="fnum">${esc(c.email)}</span>`:`<span class="chip need">email needed</span>`;return `<div class="trow ${S.sel.has(c.id)?"sel":""}" data-id="${c.id}"><div class="cbx ${S.sel.has(c.id)?"on":""}" data-cbx="${c.id}"></div><div class="who"><div class="h">@${esc(c.handle)} <span class="chip niche">${esc(c.niche||"")}</span> ${c.ig_dm_sent?'<span class="chip ig">IG DM sent</span>':""}</div><div class="sub"><span class="mono">${fmtK(c.followers_num)}</span> &middot; ${esc((c.audience_problem||"").slice(0,70))}</div></div><div class="cm">${mail}</div><div><span class="status st-${st}">${st}</span></div><div class="cc chev">&rsaquo;</div></div>`;}
 function renderPipe(){const list=filtered();const p=$("#panel");if(!list.length){p.innerHTML='<div class="empty"><h3>No creators match</h3><p>Try clearing a filter.</p></div>';return;}const allSel=list.length&&list.every(c=>S.sel.has(c.id));p.innerHTML=`<div class="thead"><div class="cbx ${allSel?"on":""}" id="selAll" title="Select all"></div><div>Creator (${list.length})</div><div class="cm">Email</div><div>Status</div><div class="cc"></div></div>`+list.map(row).join("");const sa=p.querySelector("#selAll");if(sa)sa.onclick=e=>{e.stopPropagation();if(list.every(c=>S.sel.has(c.id))){list.forEach(c=>S.sel.delete(c.id));}else{list.forEach(c=>S.sel.add(c.id));}render();};p.querySelectorAll(".trow").forEach(r=>{const id=r.dataset.id;r.onclick=e=>{if(e.target.dataset.cbx!==undefined)return;openDrawer(id);};r.querySelector("[data-cbx]").onclick=e=>{e.stopPropagation();S.sel.has(id)?S.sel.delete(id):S.sel.add(id);render();};});}
+function updateFxStatus(){const el=document.getElementById("fxStatus");if(!el||!S.fxSteps.length)return;const s=S.fxSteps[Math.min(S.fetchStep,S.fxSteps.length-1)];el.innerHTML=esc(s.main)+(s.sub?` <span class="sub">${esc(s.sub)}</span>`:"");}
+function renderFetching(){const p=$("#panel");const rows=Array.from({length:6}).map((_,i)=>`<div class="sk-row" style="animation-delay:${i*90}ms"><div class="sk sk-av"></div><div><div class="sk sk-l1"></div><div class="sk sk-l2"></div></div><div class="sk sk-chip cm"></div><div class="sk sk-pill"></div><div></div></div>`).join("");p.innerHTML=`<div class="fetching"><div class="fx-strip"><span class="fx-orb"></span><span class="fx-status" id="fxStatus"></span></div><div class="fx-beam"></div>${rows}</div>`;updateFxStatus();}
 function renderReplies(){const list=S.creators.filter(c=>c.status==="Replied");const p=$("#panel");if(!list.length){p.innerHTML='<div class="empty"><h3>No replies yet</h3><p>When a creator replies, it shows here with a drafted response to approve.</p></div>';return;}p.innerHTML=list.map(c=>`<div style="padding:16px;border-top:1px solid var(--border)"><div class="who"><div class="h">@${esc(c.handle)} <span class="status st-Replied">Replied</span> ${c.reply_status==="drafted"?'<span class="chip niche">reply drafted</span>':c.reply_status==="needs_draft"?'<span class="chip need">awaiting draft</span>':c.reply_status==="approved"?'<span class="chip ig">approved, sending</span>':""}</div></div><div class="insight" style="margin:10px 0"><div class="k">They wrote</div><p style="margin:0">${esc(c.reply_text||"")}</p></div><div class="field"><label>Your reply (edit before approving)</label><textarea data-reply="${c.id}" rows="5">${esc(c.reply_draft||"")}</textarea></div><div style="display:flex;gap:9px;margin-top:10px"><button class="btn primary" data-appr-reply="${c.id}">Approve reply to send</button><button class="btn" data-open="${c.id}">Open</button></div></div>`).join("");p.querySelectorAll("[data-appr-reply]").forEach(b=>b.onclick=()=>{const id=b.dataset.apprReply;const ta=p.querySelector('[data-reply="'+id+'"]');patch(id,{reply_draft:ta.value,reply_status:"approved"});toast("Reply approved, the engine will send it");});p.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDrawer(b.dataset.open));}
 function renderAccepted(){const p=$("#panel");if(!S.accepted.length){p.innerHTML='<div class="empty"><h3>No accepted partners yet</h3><p>Mark a creator as Won and they appear here.</p></div>';return;}p.innerHTML=`<div class="thead" style="grid-template-columns:1fr 1fr 130px"><div>Creator</div><div>Email</div><div>Accepted</div></div>`+S.accepted.map(a=>`<div class="trow" style="grid-template-columns:1fr 1fr 130px;cursor:default"><div class="who"><div class="h">@${esc(a.handle)}</div><div class="sub">${esc(a.deal_terms||"")}</div></div><div class="fnum">${esc(a.email||"&mdash;")}</div><div class="fnum">${new Date(a.accepted_at).toLocaleDateString()}</div></div>`).join("");}
 
@@ -283,21 +299,29 @@ async function doFetch(){
   const niches=[...S.filters.niches], bands=[...S.filters.bands];
   const msg=$("#fetchMsg"), btn=$("#fetchBtn");
   if(!niches.length){ msg.hidden=false; msg.textContent="Pick at least one Industry filter, then hit Fetch."; return; }
-  const label=btn.textContent; btn.disabled=true; btn.textContent="Fetching..."; msg.hidden=false;
-  msg.textContent="Searching Instagram for "+niches.join(", ")+(bands.length?" in your selected follower band":"")+"... this can take up to a minute.";
+  S.tab="pipe";
+  const tags=niches.slice(0,5).map(n=>"#"+n.toLowerCase().replace(/[^a-z0-9]+/g,"")).join("  ");
+  S.fxSteps=[{main:"Scanning Instagram",sub:tags},{main:"Reading profiles and follower counts"},{main:"Filtering to your follower band"},{main:"Removing anyone already in your list"},{main:"Bringing in the best matches"}];
+  S.fetchStep=0; S.fetching=true;
+  const label=btn.textContent; btn.disabled=true; btn.textContent="Fetching..."; msg.hidden=true;
+  render();
+  const iv=setInterval(()=>{ S.fetchStep=Math.min(S.fetchStep+1,S.fxSteps.length-1); updateFxStatus(); },1700);
   try{
     const { data, error } = await sb.functions.invoke("discover", { body:{ niches, bands } });
-    if(error){ msg.textContent="Error: "+(error.message||error); }
-    else if(data&&data.error){ msg.textContent=data.error; }
+    S.fetching=false; clearInterval(iv);
+    if(error){ msg.hidden=false; msg.textContent="Error: "+(error.message||error); }
+    else if(data&&data.error){ msg.hidden=false; msg.textContent=data.error; }
     else{
       const n=(data&&data.inserted)||0;
+      msg.hidden=false;
       msg.textContent = n
         ? ("Added "+n+" new creator"+(n===1?"":"s")+", skipping any already in your list.")
         : "No new creators matched (all were duplicates or outside your follower band). Try another industry or band.";
-      if(data&&data.errors&&data.errors.length) msg.textContent += " (Some sources errored: "+data.errors[0]+")";
-      await loadAll(); render();
+      if(data&&data.errors&&data.errors.length) msg.textContent += " ("+data.errors[0]+")";
+      await loadAll();
     }
-  }catch(e){ msg.textContent="Error: "+(e&&e.message?e.message:e); }
+    render();
+  }catch(e){ S.fetching=false; clearInterval(iv); msg.hidden=false; msg.textContent="Error: "+(e&&e.message?e.message:e); render(); }
   finally{ btn.disabled=false; btn.textContent=label; }
 }
 function wire(){
