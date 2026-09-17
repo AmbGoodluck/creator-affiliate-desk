@@ -50,7 +50,7 @@ select{appearance:none;background:var(--surface);border:1px solid var(--border);
 .trow{border-top:1px solid var(--border);cursor:pointer}.trow:hover{background:var(--surface-2)}.trow.sel{background:var(--accent-soft)}
 .cbx{width:17px;height:17px;border:1.5px solid var(--border-strong);border-radius:5px;background:var(--surface);display:grid;place-items:center}.cbx.on{background:var(--accent);border-color:var(--accent)}.cbx.on::after{content:"";width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg);margin-top:-2px}
 .who .h{font-weight:600;font-size:14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}.who .sub{color:var(--muted);font-size:12px;margin-top:2px}
-.chip{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}.chip.niche{background:var(--surface-2);border:1px solid var(--border);color:var(--muted)}.chip.ig{background:var(--s-sent-bg);color:var(--s-sent)}.chip.need{background:var(--s-queue-bg);color:var(--s-queue)}
+.chip{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}.chip.niche{background:var(--surface-2);border:1px solid var(--border);color:var(--muted)}.chip.ig{background:var(--s-sent-bg);color:var(--s-sent)}.chip.need{background:var(--s-queue-bg);color:var(--s-queue)}.chip.ok{background:var(--s-won-bg);color:var(--s-won)}
 .fnum{font-family:var(--fm);font-size:13px;color:var(--muted)}
 .status{font-size:11.5px;padding:4px 10px;border-radius:999px;font-weight:600;text-align:center;white-space:nowrap}
 .st-New{background:var(--s-new-bg);color:var(--s-new)}.st-Approved{background:var(--s-appr-bg);color:var(--s-appr)}.st-Queued{background:var(--s-queue-bg);color:var(--s-queue)}.st-Sent{background:var(--s-sent-bg);color:var(--s-sent)}.st-Replied{background:var(--s-reply-bg);color:var(--s-reply)}.st-Won{background:var(--s-won-bg);color:var(--s-won)}.st-Lost,.st-Declined{background:var(--s-lost-bg);color:var(--s-lost)}
@@ -122,7 +122,8 @@ select{appearance:none;background:var(--surface);border:1px solid var(--border);
       <div class="ms" id="msBand"></div>
       <div class="ms" id="msStatus"></div>
       <button class="clearf" id="clearFilters" hidden>Clear</button>
-      <button class="btn primary" id="fetchBtn" style="margin-left:auto">Fetch creators</button>
+      <button class="btn" id="persBtn" style="margin-left:auto">Personalize</button>
+      <button class="btn primary" id="fetchBtn">Fetch creators</button>
     </div>
     <p id="fetchMsg" class="note" style="margin:0 0 6px" hidden></p>
     <div class="panel" id="panel"></div>
@@ -257,7 +258,7 @@ function renderStats(){
 }
 const NICHES=["Personal Finance","Investing & FIRE","Budgeting","Real Estate","Credit & Debt","Side Hustles","DIY & Home Improvement","HVAC & Home Services","Woodworking","Auto & Mechanics","Nursing & Healthcare","Nursing & Med Students","Fitness & Training","Bodybuilding","Nutrition & Diet","Yoga & Wellness","Women's Health","Women's Products","Men's Health","Men's Products","Beauty & Skincare","Fashion & Style","Parenting & Family","Cooking & Food","Meal Prep","Pets & Dogs","Gardening","Career & Job Search","Productivity","Study & Education","Language Learning","Tech & Coding","AI & Software","Business & Startups","Marketing & Social Media","Photography & Video","Crafts & Handmade","Travel","Faith & Spirituality","Mindfulness & Mental Health"];
 function fillNiches(){if(!MS.niche)return;const ns=[...new Set([...NICHES,...S.creators.map(c=>c.niche).filter(Boolean)])].sort();const sig=ns.join("|");if(MS.niche._sig===sig)return;MS.niche.setOptions(ns.map(n=>({v:n,l:n})));MS.niche._sig=sig;}
-function row(c){const st=c.status||"New";const mail=c.email?`<span class="fnum">${esc(c.email)}</span>`:`<span class="chip need">email needed</span>`;return `<div class="trow ${S.sel.has(c.id)?"sel":""}" data-id="${c.id}"><div class="cbx ${S.sel.has(c.id)?"on":""}" data-cbx="${c.id}"></div><div class="who"><div class="h">@${esc(c.handle)} <span class="chip niche">${esc(c.niche||"")}</span> ${c.ig_dm_sent?'<span class="chip ig">IG DM sent</span>':""}</div><div class="sub"><span class="mono">${fmtK(c.followers_num)}</span> &middot; ${esc((c.audience_problem||"").slice(0,70))}</div></div><div class="cm">${mail}</div><div><span class="status st-${st}">${st}</span></div><div class="cc chev">&rsaquo;</div></div>`;}
+function row(c){const st=c.status||"New";const mail=c.email?`<span class="fnum">${esc(c.email)}</span>`:`<span class="chip need">email needed</span>`;return `<div class="trow ${S.sel.has(c.id)?"sel":""}" data-id="${c.id}"><div class="cbx ${S.sel.has(c.id)?"on":""}" data-cbx="${c.id}"></div><div class="who"><div class="h">@${esc(c.handle)} <span class="chip niche">${esc(c.niche||"")}</span> ${c.ig_dm_sent?'<span class="chip ig">IG DM sent</span>':""} ${c.personalization_status==='done'?'<span class="chip ok">personalized</span>':c.personalization_status==='needs_review'?'<span class="chip need">needs review</span>':""}</div><div class="sub"><span class="mono">${fmtK(c.followers_num)}</span> &middot; ${esc((c.audience_problem||"").slice(0,70))}</div></div><div class="cm">${mail}</div><div><span class="status st-${st}">${st}</span></div><div class="cc chev">&rsaquo;</div></div>`;}
 function renderPipe(){const list=filtered();const p=$("#panel");if(!list.length){p.innerHTML='<div class="empty"><h3>No creators match</h3><p>Try clearing a filter.</p></div>';return;}const allSel=list.length&&list.every(c=>S.sel.has(c.id));p.innerHTML=`<div class="thead"><div class="cbx ${allSel?"on":""}" id="selAll" title="Select all"></div><div>Creator (${list.length})</div><div class="cm">Email</div><div>Status</div><div class="cc"></div></div>`+list.map(row).join("");const sa=p.querySelector("#selAll");if(sa)sa.onclick=e=>{e.stopPropagation();if(list.every(c=>S.sel.has(c.id))){list.forEach(c=>S.sel.delete(c.id));}else{list.forEach(c=>S.sel.add(c.id));}render();};p.querySelectorAll(".trow").forEach(r=>{const id=r.dataset.id;r.onclick=e=>{if(e.target.dataset.cbx!==undefined)return;openDrawer(id);};r.querySelector("[data-cbx]").onclick=e=>{e.stopPropagation();S.sel.has(id)?S.sel.delete(id):S.sel.add(id);render();};});}
 function updateFxStatus(){const el=document.getElementById("fxStatus");if(!el||!S.fxSteps.length)return;const s=S.fxSteps[Math.min(S.fetchStep,S.fxSteps.length-1)];el.innerHTML=esc(s.main)+(s.sub?` <span class="sub">${esc(s.sub)}</span>`:"");}
 function renderFetching(){const p=$("#panel");const rows=Array.from({length:6}).map((_,i)=>`<div class="sk-row" style="animation-delay:${i*90}ms"><div class="sk sk-av"></div><div><div class="sk sk-l1"></div><div class="sk sk-l2"></div></div><div class="sk sk-chip cm"></div><div class="sk sk-pill"></div><div></div></div>`).join("");p.innerHTML=`<div class="fetching"><div class="fx-strip"><span class="fx-orb"></span><span class="fx-status" id="fxStatus"></span></div><div class="fx-beam"></div>${rows}</div>`;updateFxStatus();}
@@ -270,16 +271,17 @@ function renderDrawer(){
   if(!S.active)return;const c=S.creators.find(x=>x.id===S.active);if(!c){closeDrawer();return;}
   const st=c.status||"New";const em=buildEmail(c);
   $("#drawer").innerHTML=`<div class="dhead"><div><h2>@${esc(c.handle)}</h2><div class="sub"><span class="mono">${fmtK(c.followers_num)}</span> followers &middot; ${esc(c.niche)} &middot; <a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:var(--accent)">profile &#8599;</a></div></div><span class="status st-${st}" style="align-self:center">${st}</span><button class="x" id="dx">&times;</button></div>
-  <div class="dbody"><div class="insight"><div class="k">Audience problem</div><p>${esc(c.audience_problem)}</p><div class="k">Real comment (proof)</div><p class="quote">${esc(c.evidence)}</p></div>
+  <div class="dbody"><div class="insight"><div class="k">Audience pain point ${c.personalization_status==='done'?'<span class="chip ok">personalized</span>':c.personalization_status==='needs_review'?'<span class="chip need">needs review</span>':""}</div><p>${esc(c.personalization_pain||c.audience_problem||"Hit Personalize to pull this from their real follower comments.")}</p><div class="k">Follower quote used</div><p class="quote">${esc(c.personalization_quote||c.evidence||"")}</p></div>
   <div class="field"><label>Recipient email</label><input class="mono" id="dEmail" value="${esc(c.email||"")}" placeholder="not sourced yet"></div>
   <div class="field"><label>Outreach email &mdash; edit freely</label><div class="emailbox"><div class="subj"><span>Subject</span><input id="dSubj" value="${esc(em.subject)}"></div><textarea id="dBody" rows="16">${esc(em.body)}</textarea></div></div></div>
-  <div class="dfoot"><button class="btn" id="dSave">Save draft</button>${st==="New"?'<button class="btn primary" id="dAppr">Approve &amp; queue first email</button>':""}<button class="btn warn" id="dDecline">Decline</button><button class="btn" id="dWon">Mark won</button></div>`;
+  <div class="dfoot"><button class="btn" id="dPers">Personalize</button><button class="btn" id="dSave">Save draft</button>${st==="New"?'<button class="btn primary" id="dAppr">Approve &amp; queue first email</button>':""}<button class="btn warn" id="dDecline">Decline</button><button class="btn" id="dWon">Mark won</button></div>`;
   $("#dx").onclick=closeDrawer;
   const save=()=>patch(c.id,{email:$("#dEmail").value.trim(),subject_override:$("#dSubj").value,email_override:$("#dBody").value});
   $("#dSave").onclick=()=>{save();toast("Draft saved");};
   if($("#dAppr"))$("#dAppr").onclick=()=>{save();patch(c.id,{first_email_approved:true,status:"Approved"});toast("Approved, queued for the next send run");};
   $("#dDecline").onclick=()=>{patch(c.id,{status:"Declined"});toast("Declined and suppressed");closeDrawer();};
   $("#dWon").onclick=()=>{patch(c.id,{status:"Won"});toast("Marked won");};
+  $("#dPers").onclick=async()=>{const b=$("#dPers");b.disabled=true;b.textContent="Working...";toast("Reading their follower comments and writing a tailored email...");try{const{data,error}=await sb.functions.invoke("personalize",{body:{ids:[c.id]}});if(error){toast("Error: "+(error.message||error));}else if(data&&data.error){toast(data.error);}else{await loadAll();const r=(data.results&&data.results[0])||{};toast(r.status==="done"?"Personalized from a real follower quote":r.status==="needs_review"?"Flagged: no quotable comments found":"Done");render();openDrawer(c.id);}}catch(e){toast("Error: "+(e&&e.message?e.message:e));}finally{if($("#dPers")){$("#dPers").disabled=false;$("#dPers").textContent="Personalize";}}};
 }
 function openSettings(){
   const s=S.settings;
@@ -294,6 +296,28 @@ function openSettings(){
   $("#modal").classList.add("on");
   $("#sClose").onclick=()=>$("#modal").classList.remove("on");
   $("#sSave").onclick=async()=>{const d={from_name:$("#sFrom").value,product:$("#sProd").value,address:$("#sAddr").value,footer:$("#sFoot").value,daily_send_cap:Number($("#sCap").value)||25,body_template:$("#sBody").value};S.settings={...S.settings,...d};await sb.from("outreach_settings").update(d).eq("id",1);$("#modal").classList.remove("on");render();toast("Settings saved");};
+}
+async function doPersonalize(){
+  const ids=[...S.sel];
+  const btn=$("#persBtn"), msg=$("#fetchMsg");
+  const label=btn.textContent; btn.disabled=true; btn.textContent="Personalizing..."; msg.hidden=false;
+  msg.textContent = ids.length ? ("Reading real follower comments and writing "+ids.length+" tailored email"+(ids.length===1?"":"s")+"... about a minute each.") : "Writing personalized emails from real audience comments, in batches. This runs a while, you can keep working.";
+  let done=0, flagged=0, rounds=0;
+  try{
+    while(rounds<20){
+      rounds++;
+      const { data, error } = await sb.functions.invoke("personalize", { body: ids.length?{ids}:{limit:4} });
+      if(error){ msg.textContent="Error: "+(error.message||error); break; }
+      if(data&&data.error){ msg.textContent=data.error; break; }
+      done+=data.done||0; flagged+=data.flagged||0;
+      await loadAll(); render();
+      if(ids.length){ break; }
+      if(!data.remaining){ break; }
+      msg.textContent="Personalized "+done+" so far"+(flagged?(", "+flagged+" flagged"):"")+", still going...";
+    }
+    msg.textContent="Done. Personalized "+done+" creator"+(done===1?"":"s")+(flagged?(", "+flagged+" flagged for review (no quotable comments or the writer could not ground a real quote)."):".");
+  }catch(e){ msg.textContent="Error: "+(e&&e.message?e.message:e); }
+  finally{ btn.disabled=false; btn.textContent=label; if(ids.length)S.sel.clear(); render(); }
 }
 async function doFetch(){
   const niches=[...S.filters.niches], bands=[...S.filters.bands];
@@ -334,6 +358,7 @@ function wire(){
   MS.status.setOptions(["New","Approved","Sent","Replied","Won","Lost","Declined"].map(x=>({v:x,l:x})));
   $("#clearFilters").onclick=()=>{S.filters.q="";$("#q").value="";S.filters.niches.clear();S.filters.bands.clear();S.filters.statuses.clear();MS.niche.setOptions(MS.niche._opts);MS.band.setOptions(MS.band._opts);MS.status.setOptions(MS.status._opts);render();};
   $("#fetchBtn").onclick=doFetch;
+  $("#persBtn").onclick=doPersonalize;
   document.addEventListener("click",()=>document.querySelectorAll(".ms-pop").forEach(p=>p.hidden=true));
   $("#scrim").onclick=closeDrawer;$("#settingsBtn").onclick=openSettings;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").classList.remove("on");};
   $("#bClear").onclick=()=>{S.sel.clear();render();};
