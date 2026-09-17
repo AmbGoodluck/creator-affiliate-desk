@@ -108,7 +108,9 @@ select{appearance:none;background:var(--surface);border:1px solid var(--border);
       <div class="ms" id="msBand"></div>
       <div class="ms" id="msStatus"></div>
       <button class="clearf" id="clearFilters" hidden>Clear</button>
+      <button class="btn primary" id="fetchBtn" style="margin-left:auto">Fetch creators</button>
     </div>
+    <p id="fetchMsg" class="note" style="margin:0 0 6px" hidden></p>
     <div class="panel" id="panel"></div>
   </main>
   <div class="bulk" id="bulk"><span class="cnt" id="bulkCnt">0 selected</span><button class="b1" id="bAppr">Approve &amp; queue first email</button><button class="b2" id="bDecline">Decline</button><button class="b3" id="bClear">&times;</button></div>
@@ -277,6 +279,27 @@ function openSettings(){
   $("#sClose").onclick=()=>$("#modal").classList.remove("on");
   $("#sSave").onclick=async()=>{const d={from_name:$("#sFrom").value,product:$("#sProd").value,address:$("#sAddr").value,footer:$("#sFoot").value,daily_send_cap:Number($("#sCap").value)||25,body_template:$("#sBody").value};S.settings={...S.settings,...d};await sb.from("outreach_settings").update(d).eq("id",1);$("#modal").classList.remove("on");render();toast("Settings saved");};
 }
+async function doFetch(){
+  const niches=[...S.filters.niches], bands=[...S.filters.bands];
+  const msg=$("#fetchMsg"), btn=$("#fetchBtn");
+  if(!niches.length){ msg.hidden=false; msg.textContent="Pick at least one Industry filter, then hit Fetch."; return; }
+  const label=btn.textContent; btn.disabled=true; btn.textContent="Fetching..."; msg.hidden=false;
+  msg.textContent="Searching Instagram for "+niches.join(", ")+(bands.length?" in your selected follower band":"")+"... this can take up to a minute.";
+  try{
+    const { data, error } = await sb.functions.invoke("discover", { body:{ niches, bands } });
+    if(error){ msg.textContent="Error: "+(error.message||error); }
+    else if(data&&data.error){ msg.textContent=data.error; }
+    else{
+      const n=(data&&data.inserted)||0;
+      msg.textContent = n
+        ? ("Added "+n+" new creator"+(n===1?"":"s")+", skipping any already in your list.")
+        : "No new creators matched (all were duplicates or outside your follower band). Try another industry or band.";
+      if(data&&data.errors&&data.errors.length) msg.textContent += " (Some sources errored: "+data.errors[0]+")";
+      await loadAll(); render();
+    }
+  }catch(e){ msg.textContent="Error: "+(e&&e.message?e.message:e); }
+  finally{ btn.disabled=false; btn.textContent=label; }
+}
 function wire(){
   $("#tabPipe").onclick=()=>{S.tab="pipe";render();};$("#tabReply").onclick=()=>{S.tab="reply";render();};$("#tabAcc").onclick=()=>{S.tab="acc";render();};
   $("#q").oninput=e=>{S.filters.q=e.target.value;render();};
@@ -286,6 +309,7 @@ function wire(){
   MS.status=multiselect("msStatus","Status",S.filters.statuses,render);
   MS.status.setOptions(["New","Approved","Sent","Replied","Won","Lost","Declined"].map(x=>({v:x,l:x})));
   $("#clearFilters").onclick=()=>{S.filters.q="";$("#q").value="";S.filters.niches.clear();S.filters.bands.clear();S.filters.statuses.clear();MS.niche.setOptions(MS.niche._opts);MS.band.setOptions(MS.band._opts);MS.status.setOptions(MS.status._opts);render();};
+  $("#fetchBtn").onclick=doFetch;
   document.addEventListener("click",()=>document.querySelectorAll(".ms-pop").forEach(p=>p.hidden=true));
   $("#scrim").onclick=closeDrawer;$("#settingsBtn").onclick=openSettings;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").classList.remove("on");};
   $("#bClear").onclick=()=>{S.sel.clear();render();};
