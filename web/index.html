@@ -324,26 +324,24 @@ async function doFetch(){
   const msg=$("#fetchMsg"), btn=$("#fetchBtn");
   if(!niches.length){ msg.hidden=false; msg.textContent="Pick at least one Industry filter, then hit Fetch."; return; }
   S.tab="pipe";
-  const tags=niches.slice(0,5).map(n=>"#"+n.toLowerCase().replace(/[^a-z0-9]+/g,"")).join("  ");
-  S.fxSteps=[{main:"Scanning Instagram",sub:tags},{main:"Reading profiles and follower counts"},{main:"Filtering to your follower band"},{main:"Removing anyone already in your list"},{main:"Bringing in the best matches"}];
+  const CHUNK=2;
+  const chunks=[]; for(let i=0;i<niches.length;i+=CHUNK) chunks.push(niches.slice(i,i+CHUNK));
+  S.fxSteps=[{main:"Scanning Instagram",sub:""},{main:"Reading profiles and follower counts"},{main:"Filtering to your follower band"},{main:"Removing anyone already in your list"},{main:"Bringing in the best matches"}];
   S.fetchStep=0; S.fetching=true;
   const label=btn.textContent; btn.disabled=true; btn.textContent="Fetching..."; msg.hidden=true;
   render();
-  const iv=setInterval(()=>{ S.fetchStep=Math.min(S.fetchStep+1,S.fxSteps.length-1); updateFxStatus(); },1700);
+  const iv=setInterval(()=>{ S.fetchStep=(S.fetchStep+1)%S.fxSteps.length; updateFxStatus(); },1700);
+  let total=0, batch=0;
   try{
-    const { data, error } = await sb.functions.invoke("discover", { body:{ niches, bands } });
-    S.fetching=false; clearInterval(iv);
-    if(error){ msg.hidden=false; msg.textContent="Error: "+(error.message||error); }
-    else if(data&&data.error){ msg.hidden=false; msg.textContent=data.error; }
-    else{
-      const n=(data&&data.inserted)||0;
-      msg.hidden=false;
-      msg.textContent = n
-        ? ("Added "+n+" new creator"+(n===1?"":"s")+", skipping any already in your list.")
-        : "No new creators matched (all were duplicates or outside your follower band). Try another industry or band.";
-      if(data&&data.errors&&data.errors.length) msg.textContent += " ("+data.errors[0]+")";
-      await loadAll();
+    for(const ch of chunks){
+      batch++;
+      S.fxSteps[0]={main:(chunks.length>1?("Batch "+batch+" of "+chunks.length+" - "):"")+"scanning Instagram", sub:ch.map(n=>"#"+n.toLowerCase().replace(/[^a-z0-9]+/g,"")).join("  ")};
+      S.fetchStep=0; updateFxStatus();
+      const { data, error } = await sb.functions.invoke("discover", { body:{ niches:ch, bands } });
+      if(!error && data && !data.error){ total += (data.inserted)||0; await loadAll(); }
     }
+    S.fetching=false; clearInterval(iv); msg.hidden=false;
+    msg.textContent = total ? ("Added "+total+" new creator"+(total===1?"":"s")+" across "+niches.length+" "+(niches.length===1?"industry":"industries")+", skipping duplicates.") : "No new creators matched. Try different industries or a wider follower band.";
     render();
   }catch(e){ S.fetching=false; clearInterval(iv); msg.hidden=false; msg.textContent="Error: "+(e&&e.message?e.message:e); render(); }
   finally{ btn.disabled=false; btn.textContent=label; }
